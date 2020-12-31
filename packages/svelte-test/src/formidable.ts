@@ -1,21 +1,74 @@
-import { BehaviorSubject, Observable } from "rxjs";
+import { BehaviorSubject, combineLatest, Observable, Subject } from "rxjs";
+import { map, switchMap } from "rxjs/operators";
+
+function compareFormDatas(a: any, b: any) {
+  let result = JSON.stringify(a) == JSON.stringify(b);
+
+  console.log("Comparing ", a, result ? "==" : "!=", b);
+  return result;
+}
 
 export class FormModel {
   constructor(
     public value: BehaviorSubject<any>,
     public source: Observable<any>
-  ) {}
+  ) {
+    this.$pristine = combineLatest([value, source]).pipe(
+      map(([val, src]) => compareFormDatas(val, src))
+    );
+  }
+
+  $pristine: Observable<boolean>;
 }
 
 export class FormView {
   $model: BehaviorSubject<FormModel>;
   constructor() {
     this.$model = new BehaviorSubject(null);
+    this.$pristine = this.$model.pipe(
+      switchMap((newFormModel) => newFormModel.$pristine)
+    );
   }
 
   setModel(model: FormModel) {
     this.$model.next(model);
   }
+
+  $pristine: Observable<boolean>;
+}
+
+export class FormSupervisor {
+  constructor() {
+    this.data = {};
+  }
+
+  get(key: string) {
+    if (key! in this.data) {
+      this.data[key] = new BehaviorSubject(null);
+    }
+    return this.data[key];
+  }
+
+  data: { [key: string]: BehaviorSubject<FormModel | null> };
+}
+
+export class SupervisedFormView {
+  $model: Observable<FormModel>;
+  $id: BehaviorSubject<string>;
+  constructor(private supervisor: FormSupervisor) {
+    this.$model = this.$id.pipe(
+      switchMap((newId) => this.supervisor.get(newId))
+    );
+    this.$pristine = this.$model.pipe(
+      switchMap((newFormModel) => newFormModel.$pristine)
+    );
+  }
+
+  setId(id: string) {
+    this.$id.next(id);
+  }
+
+  $pristine: Observable<boolean>;
 }
 
 function setNewFormValue(obj: any, name: string, value: any) {
@@ -44,15 +97,6 @@ export function formView(reactiveFormValueChanges: Observable, view: FormView) {
     lastSubscription = reactiveFormValueChanges.subscribe(newFormModel.value)
   })
 }
-
-export function formView(node: HTMLElement, view: FormView) {
-  let unregisterLastModel = null;
-  view.$model.subscribe((newFormModel) => {
-    if (!!unregisterLastModel) {
-      unregisterLastModel();
-    }
-    unregisterLastModel = valueSubject(node, newFormModel.value);
-  });
 }*/
 
 export function valueSubject(node: HTMLElement, subject: BehaviorSubject<any>) {

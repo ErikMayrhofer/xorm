@@ -1,16 +1,27 @@
 <script lang="ts">
-	export let name: string;
 	import { FormModel, FormView, formView, valueSubject } from "./formidable";
 	import { BehaviorSubject } from "rxjs";
 
-	let sourceSubject = new BehaviorSubject({});
-	let modelA = new FormModel(new BehaviorSubject({}), sourceSubject);
+	let sourceSubjectA = new BehaviorSubject({});
+	let sourceSubjectB = new BehaviorSubject({});
+	let modelA = new FormModel(
+		new BehaviorSubject({ name: "", age: 0 }),
+		sourceSubjectA
+	);
 	modelA.value.subscribe((it) => console.log("ModelValueA: ", it));
-	let modelB = new FormModel(new BehaviorSubject({}), sourceSubject);
+	let modelB = new FormModel(
+		new BehaviorSubject({ name: "", age: 0 }),
+		sourceSubjectB
+	);
 	modelB.value.subscribe((it) => console.log("ModelValueB: ", it));
 
 	let view = new FormView();
 	view.setModel(modelA);
+
+	sourceSubjectA.subscribe((it) => console.log("Source A: ", it));
+	sourceSubjectB.subscribe((it) => console.log("Source B: ", it));
+
+	let viewPristine = view.$pristine;
 </script>
 
 <style>
@@ -33,15 +44,16 @@
 			max-width: none;
 		}
 	}
+
+	.sources {
+		display: flex;
+		flex-direction: row;
+		justify-content: center;
+	}
 </style>
 
 <main>
-	<h1>Hello {name}!</h1>
-	<p>
-		Visit the
-		<a href="https://svelte.dev/tutorial">Svelte tutorial</a>
-		to learn how to build Svelte apps.
-	</p>
+	<h1>Form</h1>
 
 	<button
 		on:click={() => {
@@ -57,12 +69,23 @@
 		<input name="name" type="text" />
 		<label for="age">Age: </label>
 		<input name="age" type="number" />
+		<p>Valid: {$viewPristine}</p>
 	</form>
 	<h1>SourceObject</h1>
-	<form use:valueSubject={sourceSubject}>
-		<label for="name">Name: </label>
-		<input name="name" type="text" />
-		<label for="age">Age: </label>
-		<input name="age" type="number" />
-	</form>
+	<div class="sources">
+		<form use:valueSubject={sourceSubjectA}>
+			<h3>A</h3>
+			<label for="name">Name: </label>
+			<input name="name" type="text" />
+			<label for="age">Age: </label>
+			<input name="age" type="number" />
+		</form>
+		<form use:valueSubject={sourceSubjectB}>
+			<h3>B</h3>
+			<label for="name">Name: </label>
+			<input name="name" type="text" />
+			<label for="age">Age: </label>
+			<input name="age" type="number" />
+		</form>
+	</div>
 </main>
