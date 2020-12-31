@@ -1,7 +1,14 @@
 <script lang="ts">
-	import { FormModel, FormView, formView, valueSubject } from "./formidable";
-	import { BehaviorSubject } from "rxjs";
-
+	import {
+		FormModel,
+		FormSupervisor,
+		formView,
+		ServerAdapter,
+		valueSubject,
+	} from "./formidable";
+	import { BehaviorSubject, of, UnsubscriptionError } from "rxjs";
+	import MutDisplay from "./MutDisplay.svelte";
+	/*
 	let sourceSubjectA = new BehaviorSubject({});
 	let sourceSubjectB = new BehaviorSubject({});
 	let modelA = new FormModel(
@@ -21,7 +28,17 @@
 	sourceSubjectA.subscribe((it) => console.log("Source A: ", it));
 	sourceSubjectB.subscribe((it) => console.log("Source B: ", it));
 
+	*/
+	let supervisor = new FormSupervisor(new ServerAdapter());
+	let idValue = "";
+
+	let view = supervisor.createView();
 	let viewPristine = view.$pristine;
+	let viewEditable = view.$editable;
+	let viewExistent = view.$existent;
+	let viewId = view.$id;
+
+	let model = supervisor.$models;
 </script>
 
 <style>
@@ -55,22 +72,49 @@
 <main>
 	<h1>Form</h1>
 
+	<input bind:value={idValue} />
 	<button
 		on:click={() => {
-			view.setModel(modelA);
-		}}>A</button>
-	<button
-		on:click={() => {
-			view.setModel(modelB);
-		}}>B</button>
+			view.setId(idValue);
+		}}>ApplyId</button>
+	<p>Existent: {$viewExistent}</p>
+	<p>Editable: {$viewEditable}</p>
 
-	<form use:formView={view}>
+	<form use:formView={view} on:submit|preventDefault={() => view.save()}>
+		<h4>Editing: {$viewId}</h4>
 		<label for="name">Name: </label>
-		<input name="name" type="text" />
+		<input name="name" type="text" disabled={!$viewEditable} />
 		<label for="age">Age: </label>
-		<input name="age" type="number" />
-		<p>Valid: {$viewPristine}</p>
+		<input name="age" type="number" disabled={!$viewEditable} />
+		<p>Pristine: {$viewPristine}</p>
+		<button type="submit">Save</button>
 	</form>
+
+	<button
+		on:click={() => {
+			supervisor.set(idValue, new FormModel(new BehaviorSubject({
+						name: '',
+						age: '',
+						id: idValue,
+					}), new BehaviorSubject({ name: `Id${idValue}`, age: '3' }), true));
+		}}>
+		Create
+		{idValue}
+	</button>
+
+	<ul>
+		{#each $model as model}
+			<li>
+				{model.value.value.id}:
+
+				<MutDisplay mutObservable={model.$mutation} />
+				<button on:click={() => view.setId(model.value.value.id)}>Edit</button>
+				<button
+					on:click={() => supervisor.delete(model.value.value.id)}>Delete</button>
+			</li>
+		{/each}
+	</ul>
+	<!--
 	<h1>SourceObject</h1>
 	<div class="sources">
 		<form use:valueSubject={sourceSubjectA}>
@@ -88,4 +132,5 @@
 			<input name="age" type="number" />
 		</form>
 	</div>
+-->
 </main>
