@@ -1,14 +1,10 @@
 <script lang="ts">
-	import {
-		FormModel,
-		FormSupervisor,
-		formView,
-		ServerAdapter,
-		valueSubject,
-	} from "./formidable";
+	import { FormModel, FormSupervisor, ServerAdapter } from "xorm";
+	import { htmlFormView } from "xorm";
 	import { BehaviorSubject, of, UnsubscriptionError } from "rxjs";
 	import MutDisplay from "./MutDisplay.svelte";
 	/*
+	
 	let sourceSubjectA = new BehaviorSubject({});
 	let sourceSubjectB = new BehaviorSubject({});
 	let modelA = new FormModel(
@@ -61,12 +57,6 @@
 			max-width: none;
 		}
 	}
-
-	.sources {
-		display: flex;
-		flex-direction: row;
-		justify-content: center;
-	}
 </style>
 
 <main>
@@ -80,7 +70,7 @@
 	<p>Existent: {$viewExistent}</p>
 	<p>Editable: {$viewEditable}</p>
 
-	<form use:formView={view} on:submit|preventDefault={() => view.save()}>
+	<form use:htmlFormView={view} on:submit|preventDefault={() => view.save()}>
 		<h4>Editing: {$viewId}</h4>
 		<label for="name">Name: </label>
 		<input name="name" type="text" disabled={!$viewEditable} />
@@ -88,15 +78,17 @@
 		<input name="age" type="number" disabled={!$viewEditable} />
 		<p>Pristine: {$viewPristine}</p>
 		<button type="submit">Save</button>
+		<button type="button" on:click={() => view.reset()}>Cancel</button>
 	</form>
 
+	<h2>List</h2>
 	<button
 		on:click={() => {
 			supervisor.set(idValue, new FormModel(new BehaviorSubject({
 						name: '',
 						age: '',
 						id: idValue,
-					}), new BehaviorSubject({ name: `Id${idValue}`, age: '3' }), true));
+					}), new BehaviorSubject({ name: `Id${idValue}`, age: '3' })));
 		}}>
 		Create
 		{idValue}

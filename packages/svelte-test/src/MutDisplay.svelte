@@ -1,7 +1,6 @@
 <script lang="ts">
   import type { BehaviorSubject } from "rxjs";
-
-  import type { Mutation } from "./formidable";
+  import type { Mutation } from "xorm";
 
   export let mutObservable: BehaviorSubject<Mutation>;
 

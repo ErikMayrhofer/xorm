@@ -1,5 +1,19 @@
-import { BehaviorSubject, combineLatest, Observable, of, Subject } from "rxjs";
-import { filter, map, shareReplay, switchMap } from "rxjs/operators";
+import {
+  BehaviorSubject,
+  combineLatest,
+  Observable,
+  of,
+  ReplaySubject,
+  Subject,
+} from "rxjs";
+import {
+  filter,
+  map,
+  share,
+  shareReplay,
+  switchMap,
+  tap,
+} from "rxjs/operators";
 import { v4 as uuidv4 } from "uuid";
 
 interface FormModelDataBase {
@@ -9,7 +23,7 @@ interface FormModelDataBase {
 function compareFormDatas(a: any, b: any) {
   let result = JSON.stringify(a) == JSON.stringify(b);
 
-  console.log("Comparing ", a, result ? "==" : "!=", b);
+  console.log("Comparing... ", a, result ? "==" : "!=", b);
   return result;
 }
 
@@ -27,14 +41,24 @@ export const TAG_ISNEW = 0b100;
 export class FormModel {
   constructor(
     public value: BehaviorSubject<FormModelDataBase>,
-    public source: Observable<any>
+    public rawSource: Observable<any>
   ) {
-    this.$pristine = combineLatest([value, source]).pipe(
+    this.$source = rawSource.pipe(shareReplay(1));
+    this.$source.subscribe((source) => (this.lastSource = source));
+
+    this.$pristine = combineLatest([value, this.$source]).pipe(
       map(([val, src]) => compareFormDatas(val, src))
     );
     this.$mutation = new BehaviorSubject(null);
     this.$editable = this.$mutation.pipe(map((it) => it == null));
+
+    this.$source.subscribe((val) => console.log("Source: ", val));
+
+    this.$activeDataChange = new Subject();
   }
+  private $source: Observable<any>;
+
+  private lastSource: any;
 
   $pristine: Observable<boolean>;
 
@@ -60,27 +84,21 @@ export class FormModel {
     this.$mutation.next(null);
   }
 
+  public reset() {
+    console.log("Reset... to ", this.lastSource);
+    this.value.next(this.lastSource); //What about nulls here...
+    this.$activeDataChange.next(this.lastSource);
+  }
+
   $editable: Observable<boolean>;
+
+  public $activeDataChange: Subject<any>;
 }
 
 export interface FormView {
   $model: Observable<FormModel>;
   $pristine: Observable<boolean>;
-}
-export class SimpleFormView implements FormView {
-  $model: BehaviorSubject<FormModel>;
-  constructor() {
-    this.$model = new BehaviorSubject(null);
-    this.$pristine = this.$model.pipe(
-      switchMap((newFormModel) => newFormModel.$pristine)
-    );
-  }
-
-  setModel(model: FormModel) {
-    this.$model.next(model);
-  }
-
-  $pristine: Observable<boolean>;
+  $activeDataChange: Observable<any>;
 }
 
 export class ServerAdapter {
@@ -92,12 +110,12 @@ export class ServerAdapter {
 
   async save(model: FormModel) {
     // = UPSERT
-    if (!("next" in model.source)) {
+    if (!("next" in model.rawSource)) {
       throw new Error("ServerAdapter only supports BehaviorSubject sources");
     }
     await new Promise((resolve) => setTimeout(() => resolve(null), 1000));
-    console.log("[SERVER] SAVE", model);
-    (model.source as BehaviorSubject<any>).next(
+    console.log("[SERVER] SAVE", model.value.value);
+    (model.rawSource as BehaviorSubject<any>).next(
       Object.assign({}, model.value.value)
     );
   }
@@ -170,6 +188,14 @@ export class FormSupervisor {
     //Refresh source of this.data[key]
   }
 
+  reset(key: string) {
+    let val = this.data[key].value;
+    if (!val) {
+      throw new Error(`Supervisor had no value for id ${key}`);
+    }
+    val.reset();
+  }
+
   refreshKeysSubject() {
     this.$models.next(
       Object.entries(this.data)
@@ -185,6 +211,12 @@ export class SupervisedFormView implements FormView {
   $rawModel: Observable<FormModel>;
   $model: Observable<FormModel>;
   $id: BehaviorSubject<string>;
+  $pristine: Observable<boolean>;
+  $existent: Observable<boolean>;
+  $editable: Observable<boolean>;
+
+  public $activeDataChange: Observable<any>;
+
   constructor(private supervisor: FormSupervisor) {
     this.$id = new BehaviorSubject(null);
     this.$rawModel = this.$id.pipe(
@@ -205,6 +237,10 @@ export class SupervisedFormView implements FormView {
     this.$pristine = this.$model.pipe(
       switchMap((newFormModel) => newFormModel.$pristine)
     );
+
+    this.$activeDataChange = this.$model.pipe(
+      switchMap((newFormModel) => newFormModel.$activeDataChange)
+    );
   }
 
   setId(id: string) {
@@ -217,82 +253,10 @@ export class SupervisedFormView implements FormView {
   async delete() {
     this.supervisor.delete(this.$id.value);
   }
-
-  $pristine: Observable<boolean>;
-  $existent: Observable<boolean>;
-  $editable: Observable<boolean>;
-}
-
-function setNewFormValue(obj: any, name: string, value: any) {
-  //TODO Deep access via dot-notation in obj
-  obj[name] = value;
-}
-
-export function formView(node: HTMLElement, view: FormView) {
-  let unregisterLastModel = null;
-  view.$model.subscribe((newFormModel) => {
-    if (!!unregisterLastModel) {
-      unregisterLastModel();
-    }
-    unregisterLastModel = valueSubject(node, newFormModel.value);
-  });
-}
-/*
-  Draft implementation for RactiveForms
-
-export function formView(reactiveFormValueChanges: Observable, view: FormView) {
-  let lastSubscription = null;
-  view.$model.subscribe((newFormModel) => {
-    if(!!lastSubscription) {
-      lastSubscription.unsubscribe();
-    }
-    lastSubscription = reactiveFormValueChanges.subscribe(newFormModel.value)
-  })
-}
-}*/
-
-export function valueSubject(node: HTMLElement, subject: BehaviorSubject<any>) {
-  console.log("Attaching FormView to ", node);
-
-  const updateView = (event: Event) => {
-    let inputElement = event.target as HTMLInputElement;
-    let name = inputElement.name;
-    let value = inputElement.value;
-
-    let old = subject.getValue();
-    setNewFormValue(old, name, value);
-    subject.next(old);
-  };
-
-  const unregisterMemory: {
-    element: HTMLInputElement;
-    listener: (event: Event) => void;
-  }[] = [];
-
-  let initValue = subject.value;
-  for (let i = 0; i < node.children.length; i++) {
-    let elem = node.children[i];
-    if ("value" in elem && "name" in elem && "addEventListener" in elem) {
-      let inputElement = elem as HTMLInputElement;
-      inputElement.addEventListener("input", updateView);
-
-      let initThisValue = initValue[inputElement.name]; //TODO Deep access via dot-notation in obj
-      if (initThisValue !== undefined) {
-        inputElement.value = initThisValue;
-      } else {
-        setNewFormValue(initValue, inputElement.name, inputElement.value);
-      }
-      unregisterMemory.push({
-        element: inputElement,
-        listener: updateView,
-      });
-    }
+  reset() {
+    this.supervisor.reset(this.$id.value);
   }
-  subject.next(initValue);
-
-  return () => {
-    unregisterMemory.forEach((it) => {
-      it.element.removeEventListener("input", it.listener);
-    });
-  };
 }
+
+export { htmlFormView } from "./integrations/svelte";
+export { reactiveFormView } from "./integrations/angular";
