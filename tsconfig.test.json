@@ -4,5 +4,5 @@
     "module": "CommonJS",
     "lib": ["dom"]
   },
-  "include": ["./__tests__"]
+  "include": ["./**/__tests__"]
 }

@@ -16,7 +16,8 @@ function compareFormDatas(a: FormModelDataBase, b: FormModelDataBase) {
 export class FormModel {
   constructor(
     public value: BehaviorSubject<FormModelDataBase>,
-    public rawSource: Observable<any>
+    public rawSource: Observable<any>,
+    clientSide: boolean = true
   ) {
     this.$source = rawSource.pipe(shareReplay(1));
     this.$source.subscribe((source) => (this.lastSource = source));
@@ -30,10 +31,13 @@ export class FormModel {
     this.$source.subscribe((val) => console.log("Source: ", val));
 
     this.$activeDataChange = new Subject();
+    this.$clientSide = new BehaviorSubject<boolean>(clientSide);
   }
   private $source: Observable<any>;
 
   private lastSource: any;
+
+  $clientSide: BehaviorSubject<boolean>;
 
   $pristine: Observable<boolean>;
 
