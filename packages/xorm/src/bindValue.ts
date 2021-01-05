@@ -28,18 +28,20 @@ export function valueSubject(node: HTMLElement, subject: BehaviorSubject<any>) {
     let elem = node.children[i];
     if ("value" in elem && "name" in elem && "addEventListener" in elem) {
       let inputElement = elem as HTMLInputElement;
-      inputElement.addEventListener("input", updateView);
+      if (inputElement.name.length > 0) {
+        inputElement.addEventListener("input", updateView);
 
-      let initThisValue = initValue[inputElement.name]; //TODO Deep access via dot-notation in obj
-      if (initThisValue !== undefined) {
-        inputElement.value = initThisValue;
-      } else {
-        setNewFormValue(initValue, inputElement.name, inputElement.value);
+        let initThisValue = initValue[inputElement.name]; //TODO Deep access via dot-notation in obj
+        if (initThisValue !== undefined) {
+          inputElement.value = initThisValue;
+        } else {
+          setNewFormValue(initValue, inputElement.name, inputElement.value);
+        }
+        unregisterMemory.push({
+          element: inputElement,
+          listener: updateView,
+        });
       }
-      unregisterMemory.push({
-        element: inputElement,
-        listener: updateView,
-      });
     }
   }
   subject.next(initValue);
