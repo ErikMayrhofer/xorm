@@ -15,17 +15,7 @@ import {
   tap,
 } from "rxjs/operators";
 import { v4 as uuidv4 } from "uuid";
-
-interface FormModelDataBase {
-  id: string;
-}
-
-function compareFormDatas(a: any, b: any) {
-  let result = JSON.stringify(a) == JSON.stringify(b);
-
-  console.log("Comparing... ", a, result ? "==" : "!=", b);
-  return result;
-}
+import { FormModel } from "../lib";
 
 export class Mutation {
   constructor(public message: string) {
@@ -38,63 +28,12 @@ export const TAG_DELETING = 0b1;
 export const TAG_SAVING = 0b10;
 export const TAG_ISNEW = 0b100;
 
-export class FormModel {
-  constructor(
-    public value: BehaviorSubject<FormModelDataBase>,
-    public rawSource: Observable<any>
-  ) {
-    this.$source = rawSource.pipe(shareReplay(1));
-    this.$source.subscribe((source) => (this.lastSource = source));
+function compareFormDatas(a: any, b: any) {
+  let result = JSON.stringify(a) == JSON.stringify(b);
 
-    this.$pristine = combineLatest([value, this.$source]).pipe(
-      map(([val, src]) => compareFormDatas(val, src))
-    );
-    this.$mutation = new BehaviorSubject(null);
-    this.$editable = this.$mutation.pipe(map((it) => it == null));
-
-    this.$source.subscribe((val) => console.log("Source: ", val));
-
-    this.$activeDataChange = new Subject();
-  }
-  private $source: Observable<any>;
-
-  private lastSource: any;
-
-  $pristine: Observable<boolean>;
-
-  $mutation: BehaviorSubject<Mutation>;
-
-  setMutation(mut: Mutation) {
-    if (this.$mutation.value != null) {
-      throw new Error("Cannot mutate already mutating entity");
-    }
-    this.$mutation.next(mut);
-  }
-  closeMutation(mut: Mutation) {
-    if (!this.$mutation.value) {
-      throw new Error(
-        `Tried to close Mutation ${mut.clientMutationId}, when no active Mutation was found`
-      );
-    }
-    if (this.$mutation.value.clientMutationId !== mut.clientMutationId) {
-      throw new Error(
-        `Active Mutation was ${this.$mutation.value.clientMutationId}, tried to close Mutation ${mut.clientMutationId}`
-      );
-    }
-    this.$mutation.next(null);
-  }
-
-  public reset() {
-    console.log("Reset... to ", this.lastSource);
-    this.value.next(this.lastSource); //What about nulls here...
-    this.$activeDataChange.next(this.lastSource);
-  }
-
-  $editable: Observable<boolean>;
-
-  public $activeDataChange: Subject<any>;
+  console.log("Comparing... ", a, result ? "==" : "!=", b);
+  return result;
 }
-
 export interface FormView {
   $model: Observable<FormModel>;
   $pristine: Observable<boolean>;
